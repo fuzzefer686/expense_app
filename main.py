@@ -399,6 +399,7 @@ def main():
                         st.session_state['ai_session']= None
                     if selected_type=="Sử dụng AI":
                         st.caption("Mô hình AI được sử dụng: Gemini 2.5 Pro")
+                        st.caption("Lưu ý: Hiện tại bản web chưa gọi được AI, chỉ có thể sử dụng cục bộ")
                         if st.button("Bắt đầu phân tích"):
                             with st.spinner("Đang tải..."):
                                 csv_data = df_upload.to_csv(index=False)
