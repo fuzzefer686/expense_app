@@ -392,9 +392,9 @@ def main():
                                         st.error(f"Error at row {index}: {e}")
 
                                 st.success(f"Đã thêm thành công {count} giao dịch.")
-                                reload = st.button("Reload")
-                                if reload:
-                                    st.rerun()
+                            reload = st.button("Reload")
+                            if reload:
+                                st.rerun()
                     if 'ai_session' not in st.session_state:
                         st.session_state['ai_session']= None
                     if selected_type=="Sử dụng AI":
