@@ -105,7 +105,6 @@ def view_expenses(user):
         c=db.cursor()
         # pandas to display
         data_to_display = pd.read_sql_query("SELECT item_name as ten, category as danh_muc,date as ngay,amount as so_tien FROM expenses where owner=?", db, params=(user,))
-        db.commit()
     # db.close()
     return data_to_display
 @st.cache_data(ttl=10)
@@ -114,7 +113,7 @@ def view_income(user):
         c=db.cursor()
         # pandas to display
         data_to_display = pd.read_sql_query("SELECT source as ten, category as danh_muc,date as ngay,amount as so_tien FROM income where owner=?", db, params=(user,))
-        db.commit()
+        
     # db.close()
     return data_to_display
 def del_record(table_name,record_id,owner):
@@ -133,7 +132,7 @@ def get_data_with_id(table_name,owner):
         else:
             query1= f"select * from income where owner=?"
         read_data=pd.read_sql_query(query1,db,params=(owner,))
-        db.commit()
+        
     # db.close()
     return read_data
 # main gui
