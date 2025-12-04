@@ -231,7 +231,7 @@ def main():
                     dt = st.date_input("Ngày chi")
                     if st.form_submit_button("Lưu chi tiêu"):
                         add_expense(user, item, amt, cat, dt)
-                        st.write(f"Đã lưu: -{amt:,.0f} đ", icon="💸")
+                        st.write(f"Đã lưu: -{amt:,.0f} đ")
                         st.rerun()
             with col_in:
                 st.subheader("Thêm khoản thu")
@@ -242,7 +242,7 @@ def main():
                     dt = st.date_input("Ngày thu")
                     if st.form_submit_button("Lưu thu nhập"):
                         add_income(user, src, amt, cat, dt)
-                        st.write(f"Đã nhận: +{amt:,.0f} đ", icon="💰")
+                        st.write(f"Đã nhận: +{amt:,.0f} đ")
                         st.rerun()
         with tab4:
             st.header("Thay đổi giao dịch")
