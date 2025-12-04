@@ -8,38 +8,43 @@ import json
 import ai_service as ai
 # fix lỗi streamlit bị đơ vì locked db trên streamlit
 def get_connection():
-    return sqlite3.connect('expense_db.db', check_same_thread=False, timeout=10)
+    connection = sqlite3.connect('expense_db.db', check_same_thread=False, timeout=15)
+    # KÍCH HOẠT CHẾ ĐỘ WAL: Cho phép vừa Đọc vừa Ghi cùng lúc (Rất quan trọng)
+    connection.execute("PRAGMA journal_mode=WAL;") 
+    return connection
 # tao bang
 def init_db():
-    with get_connection() as db:
-        c = db.cursor()
-        c.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                username TEXT PRIMARY KEY,
-                password TEXT
-            )
-        ''')
-        c.execute('''
-            CREATE TABLE IF NOT EXISTS expenses (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                owner TEXT,
-                item_name TEXT,
-                amount REAL,
-                category TEXT,
-                date DATE
-            )
-        ''')
-        c.execute('''
-            Create table if not exists income(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                owner TEXT,
-                source text,
-                amount REAL,
-                category TEXT,
-                date DATE
+    if 'db_initialized' not in st.session_state:
+        with get_connection() as db:
+            c = db.cursor()
+            c.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    username TEXT PRIMARY KEY,
+                    password TEXT
                 )
-                ''')
-        db.commit()
+            ''')
+            c.execute('''
+                CREATE TABLE IF NOT EXISTS expenses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    owner TEXT,
+                    item_name TEXT,
+                    amount REAL,
+                    category TEXT,
+                    date DATE
+                )
+            ''')
+            c.execute('''
+                Create table if not exists income(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    owner TEXT,
+                    source text,
+                    amount REAL,
+                    category TEXT,
+                    date DATE
+                    )
+                    ''')
+            db.commit()
+        st.session_state['db_initialized']=True
 # encrypt password
 def make_hashes(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
@@ -83,6 +88,7 @@ def add_expense(owner, expense_name, amount, category, date):
         c.execute('insert into expenses(owner, item_name, amount, category, date) values (?,?,?,?,?)',
             (owner,expense_name,amount,category,date))
         db.commit()
+    st.cache_data.clear()    
 
 def add_income(owner, income_name, amount, category, date):
     with get_connection() as db:
@@ -91,8 +97,9 @@ def add_income(owner, income_name, amount, category, date):
         c.execute('insert into income(owner, source, amount, category, date) values (?,?,?,?,?)',
             (owner,income_name,amount,category,date))
         db.commit()
+    st.cache_data.clear()
 
-
+@st.cache_data(ttl=10)
 def view_expenses(user):
     with get_connection() as db:
         c=db.cursor()
@@ -101,12 +108,13 @@ def view_expenses(user):
         db.commit()
     # db.close()
     return data_to_display
+@st.cache_data(ttl=10)
 def view_income(user):
     with get_connection() as db:
         c=db.cursor()
         # pandas to display
         data_to_display = pd.read_sql_query("SELECT source as ten, category as danh_muc,date as ngay,amount as so_tien FROM income where owner=?", db, params=(user,))
-        db.commit
+        db.commit()
     # db.close()
     return data_to_display
 def del_record(table_name,record_id,owner):
@@ -115,6 +123,7 @@ def del_record(table_name,record_id,owner):
         query = f"DELETE FROM {table_name} WHERE id=? and owner=?"
         c.execute(query,(record_id,owner))
         db.commit()
+    st.cache_data.clear()
     # db.close()
 def get_data_with_id(table_name,owner):
     with get_connection() as db:
@@ -270,7 +279,7 @@ def main():
                 if not to_delete.empty:
                     st.warning(f"""
                                Bạn đang chọn xóa {count_trans} giao dịch với tổng số tiền {sum_trans} VNĐ.\n
-                               Bằng chữ {read_money}.     
+                               Bằng chữ: {read_money}.     
                                """)
                     if st.button("Xác nhận xóa"):
                         count = 0
@@ -308,7 +317,7 @@ def main():
                     st.info("Chưa có dữ liệu thu nhập.")
         with tab3:
             st.header("Nhập liệu từ Excel/CSV")
-            st.info("Hỗ trợ file .csv hoặc .xlsx. Dữ liệu sẽ được thêm vào bảng chi tiêu.")
+            st.info("Hỗ trợ file .csv hoặc .xlsx. Dữ liệu sẽ được thêm vào bảng tương ứng.")
             uploaded_file = st.file_uploader("Chọn file", type=['xlsx', 'csv'])
             
             if uploaded_file is not None:
