@@ -11,7 +11,7 @@ import threading
 # update: Lỗi bất đồng bộ quá nặng do việc mở kết nối bị delay
 db_lock = threading.Lock()
 
-@st.cache_resource
+# @st.cache_resource
 def get_connection():
     connection = sqlite3.connect('expense_db.db', check_same_thread=False)
     connection.execute("PRAGMA journal_mode=WAL;") 
@@ -107,7 +107,16 @@ def add_income(owner, income_name, amount, category, date):
         db.commit()
     st.cache_data.clear()
 
-@st.cache_data(ttl=10)
+def del_record(table_name,record_id,owner):
+    with db_lock:
+        db=get_connection()
+        c=db.cursor()
+        query = f"DELETE FROM {table_name} WHERE id=? and owner=?"
+        c.execute(query,(record_id,owner))
+        db.commit()
+    st.cache_data.clear()
+    # db.close()
+
 @st.cache_data(ttl=10)
 def view_expenses(user):
     conn = get_connection()
@@ -119,15 +128,6 @@ def view_income(user):
     conn = get_connection()
     return pd.read_sql_query("SELECT source as ten, category as danh_muc, date as ngay, amount as so_tien FROM income WHERE owner=?", conn, params=(user,))
 
-def del_record(table_name,record_id,owner):
-    with db_lock:
-        db=get_connection()
-        c=db.cursor()
-        query = f"DELETE FROM {table_name} WHERE id=? and owner=?"
-        c.execute(query,(record_id,owner))
-        db.commit()
-    st.cache_data.clear()
-    # db.close()
 def get_data_with_id(table_name, owner):
     db = get_connection() 
     if table_name == "expenses":
@@ -135,7 +135,6 @@ def get_data_with_id(table_name, owner):
     else:
         query = "SELECT * FROM income WHERE owner=?"
     read_data = pd.read_sql_query(query, db, params=(owner,))
-    
     return read_data
 # main gui
 def main():
@@ -203,6 +202,7 @@ def main():
         tab1,tab4,tab2,tab3=st.tabs(["Thêm giao dịch","Thay đổi giao dịch","Lịch sử chi tiêu","Nhập từ file"])
         cat_out=["Ăn uống", "Di chuyển", "Nhà cửa", "Giải trí", "Khác"]
         cat_in=["Lương", "Hoa Hồng", "Nghề tay trái", "Rửa tiền","Khác"]
+        
         # input form tab1
         with tab1:
             get_income,get_expense=st.columns(2)
