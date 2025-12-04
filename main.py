@@ -216,17 +216,24 @@ def main():
         col2.metric("Tổng Chi Tiêu", f"{total_expense:,.0f} VND", ) 
         col3.metric("Số Dư", f"{balance:,.0f} VND", )
         # main app
-        tab1,tab4,tab2,tab3=st.tabs(["Thêm giao dịch","Thay đổi giao dịch","Lịch sử chi tiêu","Nhập từ file"])
+        # tab1,tab4,tab2,tab3=st.tabs(["Thêm giao dịch","Thay đổi giao dịch","Lịch sử chi tiêu","Nhập từ file"])
+        selected_tab = st.radio(
+            "Menu:",
+            ["Thêm giao dịch", "Thay đổi giao dịch", "Lịch sử chi tiêu", "Nhập từ file"],
+            horizontal=True, # Nằm ngang cho giống Tabs
+            label_visibility="collapsed" # Ẩn nhãn cho gọn
+            )
+        
         cat_out=["Ăn uống", "Di chuyển", "Nhà cửa", "Giải trí", "Khác"]
         cat_in=["Lương", "Hoa Hồng", "Nghề tay trái", "Rửa tiền","Khác"]
         # input form tab1
-        with tab1:
+        if selected_tab =="Thêm giao dịch":
             col_in, col_out = st.columns(2)
             with col_out:
                 st.subheader("Thêm khoản chi")
                 with st.form("expense_form", clear_on_submit=True):
                     item = st.text_input("Nội dung")
-                    amt = st.number_input("Số tiền", min_value=0.0, step=1000.0)
+                    amt = st.number_input("Số tiền", min_value=0, step=1000)
                     cat = st.selectbox("Danh mục", cat_out)
                     dt = st.date_input("Ngày chi")
                     if st.form_submit_button("Lưu chi tiêu"):
@@ -237,14 +244,14 @@ def main():
                 st.subheader("Thêm khoản thu")
                 with st.form("income_form", clear_on_submit=True):
                     src = st.text_input("Nguồn thu")
-                    amt = st.number_input("Số tiền", min_value=0.0, step=1000.0)
+                    amt = st.number_input("Số tiền", min_value=0, step=1000)
                     cat = st.selectbox("Loại thu", cat_in)
                     dt = st.date_input("Ngày thu")
                     if st.form_submit_button("Lưu thu nhập"):
                         add_income(user, src, amt, cat, dt)
                         st.write(f"Đã nhận: +{amt:,.0f} đ")
                         st.rerun()
-        with tab4:
+        if selected_tab =="Thay đổi giao dịch":
             st.header("Thay đổi giao dịch")
             option_delete = st.radio("Chọn loại dữ liệu muốn sửa đổi:", ["Chi tiêu", "Thu nhập"], horizontal=True,key="radio_delete_type")
             table_name = 'expenses' if option_delete == "Chi tiêu" else 'income'
@@ -296,7 +303,7 @@ def main():
                         st.rerun()
             else:
                 st.info("Chưa có dữ liệu để xóa.")
-        with tab2:
+        if selected_tab=="Lịch sử chi tiêu":
             st.subheader("Lịch sử giao dịch")
             
             view_mode = st.radio("Xem dữ liệu:", ["Chi tiêu", "Thu nhập"], horizontal=True)
@@ -317,7 +324,7 @@ def main():
                     st.bar_chart(df_income.groupby("danh_muc")['so_tien'].sum())
                 else:
                     st.info("Chưa có dữ liệu thu nhập.")
-        with tab3:
+        if selected_tab=="Nhập từ file":
             st.header("Nhập liệu từ Excel/CSV")
             st.info("Hỗ trợ file .csv hoặc .xlsx. Dữ liệu sẽ được thêm vào bảng chi tiêu.")
             uploaded_file = st.file_uploader("Chọn file", type=['xlsx', 'csv'],key="file_uploader_tab3")
@@ -328,66 +335,69 @@ def main():
                         df_upload = pd.read_csv(uploaded_file)
                     else:
                         df_upload = pd.read_excel(uploaded_file)
-                    
-                    st.write("Dữ liệu trong file của bạn (5 cột đầu tiên):")
 
                     # ai_used=st.button("Sử dụng AI để đọc tài liệu của bạn")
-                    manual,ai_serv = st.tabs(["Chọn thủ công","Sử dụng AI"])
-                    with manual:
+                    selected_type = st.radio(
+                        "Menu:",
+                        ["Chọn thủ công", "Sử dụng AI"],
+                        horizontal=True, # Nằm ngang cho giống Tabs
+                        label_visibility="collapsed" 
+                        )
+                    if selected_type=="Chọn thủ công":
                         st.dataframe(df_upload.head()) 
 
                         st.subheader("Chọn cột để lấy dữ liệu")
                         st.caption("Chọn cột trong file tương ứng với dữ liệu cần nhập")
                         
                         cols = df_upload.columns.tolist()
-                        
-                        col1, col2, col3,col5,col6 = st.columns(5)
-                        with col1:
-                            col_user = st.selectbox("Cột Người dùng", cols,key="user_sel")
-                        with col2:
-                            col_item = st.selectbox("Cột Nội dung", cols,key="item_sel")
-                        with col3:
-                            col_amount = st.selectbox("Cột Số tiền", cols,key="amount_sel")
-                        with col5:
-                            col_date = st.selectbox("Cột ngày",cols,key="data_sel")
-                        with col6:
-                            option_cat = st.radio("Danh mục:", ["Chọn chung cho tất cả bản ghi", "Lấy tên danh mục từ file"],key="radio_cat")
-                            if option_cat == "Lấy tên danh mục từ file":
-                                col_cat = st.selectbox("Chọn cột Danh mục", cols,key="sel_cat_col")
-                            else:
-                                fixed_cat = st.selectbox("Chọn danh mục chung", cat_out,key="sel_cat_fixed")
+                        with st.form("multiple_choice"):
+                            col1, col2, col3,col5,col6 = st.columns(5)
+                            with col1:
+                                col_user = st.selectbox("Cột Người dùng", cols,key="user_sel")
+                            with col2:
+                                col_item = st.selectbox("Cột Nội dung", cols,key="item_sel")
+                            with col3:
+                                col_amount = st.selectbox("Cột Số tiền", cols,key="amount_sel")
+                            with col5:
+                                col_date = st.selectbox("Cột ngày",cols,key="data_sel")
+                            with col6:
+                                option_cat = st.radio("Danh mục:", ["Chọn chung cho tất cả bản ghi", "Lấy tên danh mục từ file"],key="radio_cat")
+                                if option_cat == "Lấy tên danh mục từ file":
+                                    col_cat = st.selectbox("Chọn cột Danh mục", cols,key="sel_cat_col")
+                                else:
+                                    fixed_cat = st.selectbox("Chọn danh mục chung", cat_out,key="sel_cat_fixed")
 
-                        #  import 
-                        if st.button("Bắt đầu nhập"):
-                            count = 0
-                            #loop row
-                            for index, row in df_upload.iterrows():
-                                try:
-                                    # current row
-                                    date_val = pd.to_datetime(row[col_date]).date()
-                                    item_val = str(row[col_item])
-                                    amount_val = float(row[col_amount])
-                                    # cat_val = str(row[col_category])
-                                    user_val = str(row[col_user])
-                                    # xử lý cat
-                                    if option_cat == "Lấy tên danh mục từ file":
-                                        cat_val = str(row[col_cat])
-                                    else:
-                                        cat_val = fixed_cat
-                                    
-                                    # function call
-                                    add_expense(user, item_val, amount_val, cat_val, date_val)
-                                    count += 1
-                                except Exception as e:
-                                    st.error(f"Error at row {index}: {e}")
+                            #  import 
+                            if st.form_submit_button("Bắt đầu nhập"):
+                                count = 0
+                                #loop row
+                                for index, row in df_upload.iterrows():
+                                    try:
+                                        # current row
+                                        date_val = pd.to_datetime(row[col_date]).date()
+                                        item_val = str(row[col_item])
+                                        amount_val = float(row[col_amount])
+                                        # cat_val = str(row[col_category])
+                                        user_val = str(row[col_user])
+                                        # xử lý cat
+                                        if option_cat == "Lấy tên danh mục từ file":
+                                            cat_val = str(row[col_cat])
+                                        else:
+                                            cat_val = fixed_cat
+                                        
+                                        # function call
+                                        add_expense(user, item_val, amount_val, cat_val, date_val)
+                                        count += 1
+                                    except Exception as e:
+                                        st.error(f"Error at row {index}: {e}")
 
-                            st.success(f"Đã thêm thành công {count} giao dịch.")
-                            reload = st.button("Reload")
-                            if reload:
-                                st.rerun()
+                                st.success(f"Đã thêm thành công {count} giao dịch.")
+                                reload = st.button("Reload")
+                                if reload:
+                                    st.rerun()
                     if 'ai_session' not in st.session_state:
                         st.session_state['ai_session']= None
-                    with ai_serv:
+                    if selected_type=="Sử dụng AI":
                         st.caption("Mô hình AI được sử dụng: Gemini 2.5 Pro")
                         if st.button("Bắt đầu phân tích"):
                             with st.spinner("Đang tải..."):
