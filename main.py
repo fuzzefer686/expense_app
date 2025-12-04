@@ -3,7 +3,9 @@ import sqlite3
 import hashlib
 import pandas as pd
 from datetime import datetime
-
+import google.generativeai as genai
+import json
+import ai_service as ai
 # tao bang
 def init_db():
     db = sqlite3.connect('expense_db.db')
@@ -107,6 +109,24 @@ def view_income(user):
     data_to_display = pd.read_sql_query("SELECT source as ten, category as danh_muc,date as ngay,amount as so_tien FROM income where owner=?", db, params=(user,))
     db.close()
     return data_to_display
+def del_record(table_name,record_id,owner):
+    db=sqlite3.connect('expense_db.db')
+    c = db.cursor()
+    query = f"DELETE FROM {table_name} WHERE id=? and owner=?"
+    c.execute(query,(record_id,owner))
+    db.commit()
+    db.close()
+def get_data_with_id(table_name,owner):
+    db=sqlite3.connect('expense_db.db')
+    c = db.cursor()
+    if table_name=="expenses":
+        query1= f"select * from expenses where owner=?"
+    else:
+        query1= f"select * from income where owner=?"
+    read_data=pd.read_sql_query(query1,db,params=(owner,))
+    db.commit()
+    db.close()
+    return read_data
 # main gui
 def main():
     st.title("Quản Lý Chi Tiêu Cá Nhân")
@@ -156,7 +176,7 @@ def main():
             st.rerun()
 
         #set avatar user
-        st.title("Dashboard Tài Chính")
+        st.title("Dashboard")
 
         #METRICS
         df_expense = view_expenses(user)
@@ -170,7 +190,7 @@ def main():
         col2.metric("Tổng Chi Tiêu", f"{total_expense:,.0f} VND", ) 
         col3.metric("Số Dư", f"{balance:,.0f} VND", )
         # main app
-        tab1,tab2,tab3=st.tabs(["Thêm khoản chi","Lịch sử chi tiêu","Nhập từ file"])
+        tab1,tab4,tab2,tab3=st.tabs(["Thêm giao dịch","Thay đổi giao dịch","Lịch sử chi tiêu","Nhập từ file"])
         cat_out=["Ăn uống", "Di chuyển", "Nhà cửa", "Giải trí", "Khác"]
         cat_in=["Lương", "Hoa Hồng", "Nghề tay trái", "Rửa tiền","Khác"]
         # input form tab1
@@ -213,6 +233,58 @@ def main():
                         add_income(user, source, amount, category,date)
                         st.success(f"Đã thêm: + {source} {amount} VNĐ")
                         st.rerun()
+        with tab4:
+            st.header("Thay đổi giao dịch")
+            option_delete = st.radio("Chọn loại dữ liệu muốn sửa đổi:", ["Chi tiêu", "Thu nhập"], horizontal=True)
+            table_name = 'expenses' if option_delete == "Chi tiêu" else 'income'
+            
+            df_delete = get_data_with_id(table_name, user)
+            
+            if not df_delete.empty:
+                select_all=st.checkbox("Chọn tất cả")
+                df_delete['Delete'] = False
+                if select_all:
+                    df_delete['Delete']=True
+                st.write(f"Danh sách {option_delete} (Tích vào ô 'Delete' ở cột cuối để chọn xóa):")
+                
+                # Sử dụng data_editor để tạo checkbox tương tác
+                edited_df = st.data_editor(
+                    
+                    df_delete,
+                    column_config={
+                        "Delete": st.column_config.CheckboxColumn(
+                            "Chọn xóa?",
+                            default=False,
+                        ),
+                        "id": st.column_config.NumberColumn("ID", disabled=True) # khóa cột id  
+                    },
+                    disabled=False, 
+                    hide_index=True
+                )
+                
+                # execute
+                to_delete = edited_df[edited_df['Delete'] == True]
+                count_trans=len(to_delete)
+                sum_trans=to_delete['amount'].sum()
+                read_money=ai.ask_ai_to_read_money(sum_trans)
+                if not to_delete.empty:
+                    st.warning(f"""
+                               Bạn đang chọn xóa {count_trans} giao dịch với tổng số tiền {sum_trans} VNĐ.\n
+                               Bằng chữ {read_money}.     
+                               """)
+                    if st.button("Xác nhận xóa"):
+                        count = 0
+
+                        for index, row in to_delete.iterrows():
+                            del_record(table_name, row['id'], user)
+                            count += 1
+                        
+                        st.success(f"Đã xóa thành công {count} giao dịch!")
+                        reload = st.button("Reload")
+                        if reload:
+                            st.rerun()
+            else:
+                st.info("Chưa có dữ liệu nào để xóa.")
         with tab2:
             st.subheader("Lịch sử giao dịch")
             
@@ -237,7 +309,6 @@ def main():
         with tab3:
             st.header("Nhập liệu từ Excel/CSV")
             st.info("Hỗ trợ file .csv hoặc .xlsx. Dữ liệu sẽ được thêm vào bảng chi tiêu.")
-            
             uploaded_file = st.file_uploader("Chọn file", type=['xlsx', 'csv'])
             
             if uploaded_file is not None:
@@ -248,61 +319,97 @@ def main():
                         df_upload = pd.read_excel(uploaded_file)
                     
                     st.write("Dữ liệu trong file của bạn (5 cột đầu tiên):")
-                    st.dataframe(df_upload.head()) 
 
-                    st.subheader("Chọn cột để lấy dữ liệu")
-                    st.caption("Chọn cột trong file tương ứng với dữ liệu cần nhập")
-                    
-                    cols = df_upload.columns.tolist()
-                    
-                    col1, col2, col3, col4,col5,col6 = st.columns(6)
-                    with col1:
-                        col_user = st.selectbox("Cột Người dùng", cols)
-                    with col2:
-                        col_item = st.selectbox("Cột Nội dung", cols)
-                    with col3:
-                        col_amount = st.selectbox("Cột Số tiền", cols)
-                    with col4:
-                        col_category = st.selectbox("Cột danh mục",cols)
-                    with col5:
-                        col_date = st.selectbox("Cột ngày",cols)
-                    with col6:
-                        # choose category // for long code only=))
-                        option_cat = st.radio("Danh mục:", ["Chọn chung cho tất cả bản ghi", "Lấy tên danh mục từ file"])
-                        if option_cat == "Lấy tên danh mục từ file":
-                            col_cat = st.selectbox("Chọn cột Danh mục", cols)
-                        else:
-                            fixed_cat = st.selectbox("Chọn danh mục chung", cat_out)
+                    # ai_used=st.button("Sử dụng AI để đọc tài liệu của bạn")
+                    manual,ai_serv = st.tabs(["Chọn thủ công","Sử dụng AI"])
+                    with manual:
+                        st.dataframe(df_upload.head()) 
 
-                    #  import 
-                    if st.button("Bắt đầu nhập"):
-                        count = 0
-                        #loop row
-                        for index, row in df_upload.iterrows():
-                            try:
-                                # current row
-                                date_val = pd.to_datetime(row[col_date]).date()
-                                item_val = str(row[col_item])
-                                amount_val = float(row[col_amount])
-                                cat_val = str(row[col_category])
-                                user_val = str(row[col_user])
-                                # xử lý cat
-                                if option_cat == "Lấy tên danh mục từ file":
-                                    cat_val = str(row[col_cat])
+                        st.subheader("Chọn cột để lấy dữ liệu")
+                        st.caption("Chọn cột trong file tương ứng với dữ liệu cần nhập")
+                        
+                        cols = df_upload.columns.tolist()
+                        
+                        col1, col2, col3,col5,col6 = st.columns(5)
+                        with col1:
+                            col_user = st.selectbox("Cột Người dùng", cols)
+                        with col2:
+                            col_item = st.selectbox("Cột Nội dung", cols)
+                        with col3:
+                            col_amount = st.selectbox("Cột Số tiền", cols)
+                        with col5:
+                            col_date = st.selectbox("Cột ngày",cols)
+                        with col6:
+                            option_cat = st.radio("Danh mục:", ["Chọn chung cho tất cả bản ghi", "Lấy tên danh mục từ file"])
+                            if option_cat == "Lấy tên danh mục từ file":
+                                col_cat = st.selectbox("Chọn cột Danh mục", cols)
+                            else:
+                                fixed_cat = st.selectbox("Chọn danh mục chung", cat_out)
+
+                        #  import 
+                        if st.button("Bắt đầu nhập"):
+                            count = 0
+                            #loop row
+                            for index, row in df_upload.iterrows():
+                                try:
+                                    # current row
+                                    date_val = pd.to_datetime(row[col_date]).date()
+                                    item_val = str(row[col_item])
+                                    amount_val = float(row[col_amount])
+                                    # cat_val = str(row[col_category])
+                                    user_val = str(row[col_user])
+                                    # xử lý cat
+                                    if option_cat == "Lấy tên danh mục từ file":
+                                        cat_val = str(row[col_cat])
+                                    else:
+                                        cat_val = fixed_cat
+                                    
+                                    # function call
+                                    add_expense(user, item_val, amount_val, cat_val, date_val)
+                                    count += 1
+                                except Exception as e:
+                                    st.error(f"Error at row {index}: {e}")
+
+                            st.success(f"Đã thêm thành công {count} giao dịch.")
+                            reload = st.button("Reload")
+                            if reload:
+                                st.rerun()
+                    if 'ai_session' not in st.session_state:
+                        st.session_state['ai_session']= None
+                    with ai_serv:
+                        st.caption("Mô hình AI được sử dụng: Gemini 2.5 Pro")
+                        if st.button("Bắt đầu phân tích"):
+                            with st.spinner("Đang tải..."):
+                                csv_data = df_upload.to_csv(index=False)
+                                ai_results = ai.ask_ai_to_parse(csv_data)
+
+
+                                if ai_results:
+                                    st.session_state['ai_session'] = pd.DataFrame(ai_results)
                                 else:
-                                    cat_val = fixed_cat
-                                
-                                # function call
-                                add_expense(user, item_val, amount_val, cat_val, date_val)
-                                count += 1
-                            except Exception as e:
-                                st.error(f"Error at row {index}: {e}")
-
-                        st.success(f"Đã thêm thành công {count} giao dịch.")
-                        reload = st.button("Reload")
-                        if reload:
-                            st.rerun()
-
+                                    st.error("Không thể phân tích")
+                        if st.session_state['ai_session'] is not None:
+                                    
+                            data_read_ai = st.session_state['ai_session']
+                            edited_df = st.data_editor(data_read_ai, num_rows="dynamic")
+                            st.write("Kết quả:")
+            
+                                    
+                            if st.button("Lưu kết quả"):
+                                count = 0
+                                for idx, row in edited_df.iterrows():
+                                # Kiểm tra column loại, cần phân biệt Thu nhập và Chi tiêu
+                                    if row.get('type') == "Thu nhập":
+                                        add_income(user, str(row['content']), float(row['amount']), str(row['category']), pd.to_datetime(row['date']).date())
+                                        count+=1
+                                    elif row.get('type') == "Chi tiêu":
+                                        add_expense(user, str(row['content']), float(row['amount']), str(row['category']), pd.to_datetime(row['date']).date())
+                                        count+=1
+                                st.success(f"Đã thêm thành công {count} giao dịch.")
+                            reload = st.button("Reload")
+                            if reload:
+                                st.session_state['ai_session'] = None
+                                st.rerun()
                 except Exception as e:
                     st.error(f"Lỗi đọc file: {e}")
 if __name__ == '__main__':
