@@ -3,6 +3,8 @@ import sqlite3
 import hashlib
 import pandas as pd
 from datetime import datetime
+import google.generativeai as genai
+import json
 import ai_service as ai
 import threading
 
@@ -14,16 +16,12 @@ db_lock = threading.Lock()
 
 @st.cache_resource
 def get_connection():
-    """
-    Tạo một kết nối duy nhất và giữ nó sống mãi (Cached Resource).
-    Không bao giờ đóng kết nối này cho đến khi App tắt.
-    """
-    conn = sqlite3.connect('expense_db.db', check_same_thread=False)
-    conn.execute("PRAGMA journal_mode=WAL;") 
-    return conn
+    connection = sqlite3.connect('expense_db.db', check_same_thread=False)
+    connection.execute("PRAGMA journal_mode=WAL;") 
+    return connection
 
 def init_db():
-    # Dùng lock để đảm bảo chỉ 1 người được tạo bảng 1 lúc
+    # CHỈ MỘT NGƯỜI ĐƯỢC TẠO BẢNG 1 LÚC
     with db_lock:
         conn = get_connection()
         c = conn.cursor()
