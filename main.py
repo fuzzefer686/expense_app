@@ -6,38 +6,40 @@ from datetime import datetime
 import google.generativeai as genai
 import json
 import ai_service as ai
+# fix lỗi streamlit bị đơ vì locked db trên streamlit
+def get_connection():
+    return sqlite3.connect('expense_db.db', check_same_thread=False, timeout=10)
 # tao bang
 def init_db():
-    db = sqlite3.connect('expense_db.db')
-    c = db.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            username TEXT PRIMARY KEY,
-            password TEXT
-        )
-    ''')
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS expenses (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            owner TEXT,
-            item_name TEXT,
-            amount REAL,
-            category TEXT,
-            date DATE
-        )
-    ''')
-    c.execute('''
-        Create table if not exists income(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            owner TEXT,
-            source text,
-            amount REAL,
-            category TEXT,
-            date DATE
-              )
-              ''')
-    db.commit()
-    db.close()
+    with get_connection() as db:
+        c = db.cursor()
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                username TEXT PRIMARY KEY,
+                password TEXT
+            )
+        ''')
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS expenses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                owner TEXT,
+                item_name TEXT,
+                amount REAL,
+                category TEXT,
+                date DATE
+            )
+        ''')
+        c.execute('''
+            Create table if not exists income(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                owner TEXT,
+                source text,
+                amount REAL,
+                category TEXT,
+                date DATE
+                )
+                ''')
+        db.commit()
 # encrypt password
 def make_hashes(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
@@ -53,79 +55,75 @@ def check_hashes(password, hashed_text):
 
 # tạo user
 def create_user(username, password):
-    conn = sqlite3.connect('expense_db.db')
-    c = conn.cursor()
-    try:
-        c.execute('INSERT into users(username, password) VALUES (?,?)',
-                  (username, make_hashes(password)))
-        conn.commit()
-        return True
-    except sqlite3.IntegrityError:
-        return False  # Username đã tồn tại
-    finally:
-        conn.close()
+    with get_connection() as db:
+        c = db.cursor()
+        try:
+            c.execute('INSERT into users(username, password) VALUES (?,?)',
+                    (username, make_hashes(password)))
+            db.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False  # Username đã tồn tại
 
 # đăng nhập cho user
 def login_user(username, password):
-    conn = sqlite3.connect('expense_db.db')
-    c = conn.cursor()
-    c.execute('SELECT * FROM users WHERE username =? AND password = ?',
-              (username, make_hashes(password)))
-    data = c.fetchall()
-    conn.close()
-    return data
+    with get_connection() as db:
+        c = db.cursor()
+        c.execute('SELECT * FROM users WHERE username =? AND password = ?',
+                (username, make_hashes(password)))
+        data = c.fetchall()
+        return data
 
 
 # funct expenses
 def add_expense(owner, expense_name, amount, category, date):
-    db=sqlite3.connect('expense_db.db')
-    c=db.cursor()
-    # bug fixed: 4 out of 5 columns
-    c.execute('insert into expenses(owner, item_name, amount, category, date) values (?,?,?,?,?)',
-        (owner,expense_name,amount,category,date))
-    db.commit()
-    db.close()
+    with get_connection() as db:
+        c=db.cursor()
+        # bug fixed: 4 out of 5 columns
+        c.execute('insert into expenses(owner, item_name, amount, category, date) values (?,?,?,?,?)',
+            (owner,expense_name,amount,category,date))
+        db.commit()
 
 def add_income(owner, income_name, amount, category, date):
-    db=sqlite3.connect('expense_db.db')
-    c=db.cursor()
-    # bug fixed: 4 out of 5 columns
-    c.execute('insert into income(owner, source, amount, category, date) values (?,?,?,?,?)',
-        (owner,income_name,amount,category,date))
-    db.commit()
-    db.close()
+    with get_connection() as db:
+        c=db.cursor()
+        # bug fixed: 4 out of 5 columns
+        c.execute('insert into income(owner, source, amount, category, date) values (?,?,?,?,?)',
+            (owner,income_name,amount,category,date))
+        db.commit()
+
 
 def view_expenses(user):
-    db = sqlite3.connect('expense_db.db')
-    c=db.cursor()
-    # pandas to display
-    data_to_display = pd.read_sql_query("SELECT item_name as ten, category as danh_muc,date as ngay,amount as so_tien FROM expenses where owner=?", db, params=(user,))
-    db.close()
+    with get_connection() as db:
+        c=db.cursor()
+        # pandas to display
+        data_to_display = pd.read_sql_query("SELECT item_name as ten, category as danh_muc,date as ngay,amount as so_tien FROM expenses where owner=?", db, params=(user,))
+    # db.close()
     return data_to_display
 def view_income(user):
-    db = sqlite3.connect('expense_db.db')
-    c=db.cursor()
-    # pandas to display
-    data_to_display = pd.read_sql_query("SELECT source as ten, category as danh_muc,date as ngay,amount as so_tien FROM income where owner=?", db, params=(user,))
-    db.close()
+    with get_connection() as db:
+        c=db.cursor()
+        # pandas to display
+        data_to_display = pd.read_sql_query("SELECT source as ten, category as danh_muc,date as ngay,amount as so_tien FROM income where owner=?", db, params=(user,))
+    # db.close()
     return data_to_display
 def del_record(table_name,record_id,owner):
-    db=sqlite3.connect('expense_db.db')
-    c = db.cursor()
-    query = f"DELETE FROM {table_name} WHERE id=? and owner=?"
-    c.execute(query,(record_id,owner))
-    db.commit()
-    db.close()
+    with get_connection() as db:
+        c = db.cursor()
+        query = f"DELETE FROM {table_name} WHERE id=? and owner=?"
+        c.execute(query,(record_id,owner))
+        db.commit()
+    # db.close()
 def get_data_with_id(table_name,owner):
-    db=sqlite3.connect('expense_db.db')
-    c = db.cursor()
-    if table_name=="expenses":
-        query1= f"select * from expenses where owner=?"
-    else:
-        query1= f"select * from income where owner=?"
-    read_data=pd.read_sql_query(query1,db,params=(owner,))
-    db.commit()
-    db.close()
+    with get_connection() as db:
+        c = db.cursor()
+        if table_name=="expenses":
+            query1= f"select * from expenses where owner=?"
+        else:
+            query1= f"select * from income where owner=?"
+        read_data=pd.read_sql_query(query1,db,params=(owner,))
+        db.commit()
+    # db.close()
     return read_data
 # main gui
 def main():
