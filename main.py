@@ -361,11 +361,11 @@ def main():
                             with col5:
                                 col_date = st.selectbox("Cột ngày",cols,key="data_sel")
                             with col6:
-                                option_cat = st.radio("Danh mục:", ["Chọn chung cho tất cả bản ghi", "Lấy tên danh mục từ file"],key="radio_cat")
-                                if option_cat == "Lấy tên danh mục từ file":
-                                    col_cat = st.selectbox("Chọn cột Danh mục", cols,key="sel_cat_col")
-                                else:
-                                    fixed_cat = st.selectbox("Chọn danh mục chung", cat_out,key="sel_cat_fixed")
+                                # option_cat = st.selectbox("Danh mục:", ["Chọn chung cho tất cả bản ghi", "Lấy tên danh mục từ file"],key="radio_cat")
+                                # if option_cat == "Lấy tên danh mục từ file":
+                                col_cat = st.selectbox("Chọn cột Danh mục", cols,key="sel_cat_col")
+                                # else:
+                                #     fixed_cat = st.selectbox("Chọn danh mục chung", cat_out,key="sel_cat_fixed")
 
                             #  import 
                             if st.form_submit_button("Bắt đầu nhập"):
@@ -380,10 +380,10 @@ def main():
                                         # cat_val = str(row[col_category])
                                         user_val = str(row[col_user])
                                         # xử lý cat
-                                        if option_cat == "Lấy tên danh mục từ file":
-                                            cat_val = str(row[col_cat])
-                                        else:
-                                            cat_val = fixed_cat
+                                        # if option_cat == "Lấy tên danh mục từ file":
+                                        cat_val = str(row[col_cat])
+                                        # else:
+                                        #     cat_val = fixed_cat
                                         
                                         # function call
                                         add_expense(user, item_val, amount_val, cat_val, date_val)
@@ -392,9 +392,9 @@ def main():
                                         st.error(f"Error at row {index}: {e}")
 
                                 st.success(f"Đã thêm thành công {count} giao dịch.")
-                            reload = st.button("Reload")
-                            if reload:
-                                st.rerun()
+                        reload = st.button("Reload")
+                        if reload:
+                            st.rerun()
                     if 'ai_session' not in st.session_state:
                         st.session_state['ai_session']= None
                     if selected_type=="Sử dụng AI":
