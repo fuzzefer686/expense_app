@@ -11,7 +11,7 @@ import threading
 # update: Lỗi bất đồng bộ quá nặng do việc mở kết nối bị delay
 db_lock = threading.Lock()
 
-# @st.cache_resource
+@st.cache_resource
 def get_connection():
     connection = sqlite3.connect('expense_db.db', check_same_thread=False)
     connection.execute("PRAGMA journal_mode=WAL;") 
