@@ -220,45 +220,29 @@ def main():
         
         # input form tab1
         with tab1:
-            get_income,get_expense=st.columns(2)
-            with get_expense:
-                st.header("Thêm khoản chi")
-                with st.form("expense_form"):
-                    st.write("Thêm khoản chi mới")
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        item_name = st.text_input("Tên khoản chi")
-                    with col2:
-                        amount = st.number_input("Số tiền", min_value=0)
-
-                    category = st.selectbox("Danh mục", cat_out)
-                    date = st.date_input("Ngày chi")
-
-                    submitted = st.form_submit_button("Thêm khoản chi")
-                    if submitted:
-                        add_expense(user, item_name, amount, category,date)
-                        st.success(f"Đã thêm: -{item_name} {amount} VNĐ")
-            with get_income:
-                st.header("Thêm khoản thu")
-                with st.form("income_form"):
-                    st.write("Thêm khoản thu mới")
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        source = st.text_input("Tên khoản thu")
-                    with col2:
-                        amount = st.number_input("Số tiền", min_value=0)
-
-                    category = st.selectbox("Nguồn thu", cat_in)
-                    # category = st.text_input("Nguồn tiền")
-                    date = st.date_input("Ngày thu")
-
-                    submitted = st.form_submit_button("Thêm khoản thu")
-                    if submitted:
-                        add_income(user, source, amount, category,date)
-                        st.success(f"Đã thêm: + {source} {amount} VNĐ")
-            reload2=st.button("Reload")
-            if reload2:
-                st.rerun()
+            col_in, col_out = st.columns(2)
+            with col_out:
+                st.subheader("Thêm khoản chi")
+                with st.form("expense_form", clear_on_submit=True):
+                    item = st.text_input("Nội dung")
+                    amt = st.number_input("Số tiền", min_value=0, step=1000)
+                    cat = st.selectbox("Danh mục", cat_out)
+                    dt = st.date_input("Ngày chi")
+                    if st.form_submit_button("Lưu chi tiêu"):
+                        add_expense(user, item, amt, cat, dt)
+                        st.toast(f"Đã lưu: -{amt:,.0f} đ", icon="💸")
+                        st.rerun()
+            with col_in:
+                st.subheader("Thêm khoản thu")
+                with st.form("income_form", clear_on_submit=True):
+                    src = st.text_input("Nguồn thu")
+                    amt = st.number_input("Số tiền", min_value=0, step=1000)
+                    cat = st.selectbox("Loại thu", cat_in)
+                    dt = st.date_input("Ngày thu")
+                    if st.form_submit_button("Lưu thu nhập"):
+                        add_income(user, src, amt, cat, dt)
+                        st.toast(f"Đã nhận: +{amt:,.0f} đ", icon="💰")
+                        st.rerun()
         with tab4:
             st.header("Thay đổi giao dịch")
             option_delete = st.radio("Chọn loại dữ liệu muốn sửa đổi:", ["Chi tiêu", "Thu nhập"], horizontal=True)
