@@ -7,6 +7,21 @@ import google.generativeai as genai
 import json
 import ai_service as ai
 import threading
+import os
+
+# --- ĐOẠN CODE CẤP CỨU: XÓA SẠCH DATABASE CŨ ---
+if os.path.exists("expense_db.db"):
+    os.remove("expense_db.db")
+    print("Đã xóa file database cũ!")
+
+if os.path.exists("expense_db.db-wal"):
+    os.remove("expense_db.db-wal")
+
+if os.path.exists("expense_db.db-shm"):
+    os.remove("expense_db.db-shm")
+
+# Xóa cache của Streamlit để ép kết nối lại
+st.cache_resource.clear()
 # fix lỗi streamlit bị đơ vì locked db trên streamlit
 # update: Lỗi bất đồng bộ quá nặng do việc mở kết nối bị delay
 db_lock = threading.Lock()
