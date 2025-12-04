@@ -6,65 +6,38 @@ from datetime import datetime
 import google.generativeai as genai
 import json
 import ai_service as ai
-import threading
-# import os
-
-# # --- ĐOẠN CODE CẤP CỨU: XÓA SẠCH DATABASE CŨ ---
-# if os.path.exists("expense_db.db"):
-#     os.remove("expense_db.db")
-#     print("Đã xóa file database cũ!")
-
-# if os.path.exists("expense_db.db-wal"):
-#     os.remove("expense_db.db-wal")
-
-# if os.path.exists("expense_db.db-shm"):
-#     os.remove("expense_db.db-shm")
-
-# Xóa cache của Streamlit để ép kết nối lại
-st.cache_resource.clear()
-# fix lỗi streamlit bị đơ vì locked db trên streamlit
-# update: Lỗi bất đồng bộ quá nặng do việc mở kết nối bị delay
-db_lock = threading.Lock()
-
-@st.cache_resource
-def get_connection():
-    connection = sqlite3.connect('expense_db.db', check_same_thread=False)
-    connection.execute("PRAGMA journal_mode=WAL;") 
-    return connection
-
 # tao bang
 def init_db():
-    # CHỈ MỘT NGƯỜI ĐƯỢC TẠO BẢNG 1 LÚC
-    with db_lock:
-        conn = get_connection()
-        c = conn.cursor()
-        c.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                username TEXT PRIMARY KEY,
-                password TEXT
-            )
-        ''')
-        c.execute('''
-            CREATE TABLE IF NOT EXISTS expenses (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                owner TEXT,
-                item_name TEXT,
-                amount REAL,
-                category TEXT,
-                date DATE
-            )
-        ''')
-        c.execute('''
-            CREATE TABLE IF NOT EXISTS income (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                owner TEXT,
-                source TEXT,
-                amount REAL,
-                category TEXT,
-                date DATE
-            )
-        ''')
-        conn.commit()
+    db = sqlite3.connect('expense_db.db')
+    c = db.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            username TEXT PRIMARY KEY,
+            password TEXT
+        )
+    ''')
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS expenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner TEXT,
+            item_name TEXT,
+            amount REAL,
+            category TEXT,
+            date DATE
+        )
+    ''')
+    c.execute('''
+        Create table if not exists income(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner TEXT,
+            source text,
+            amount REAL,
+            category TEXT,
+            date DATE
+              )
+              ''')
+    db.commit()
+    db.close()
 # encrypt password
 def make_hashes(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
@@ -80,76 +53,79 @@ def check_hashes(password, hashed_text):
 
 # tạo user
 def create_user(username, password):
-    with db_lock:
-        conn = get_connection()
-        c = conn.cursor()
-        try:
-            c.execute('INSERT INTO users(username, password) VALUES (?,?)',
-                      (username, make_hashes(password)))
-            conn.commit()
-            return True
-        except sqlite3.IntegrityError:
-            return False
+    conn = sqlite3.connect('expense_db.db')
+    c = conn.cursor()
+    try:
+        c.execute('INSERT into users(username, password) VALUES (?,?)',
+                  (username, make_hashes(password)))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False  # Username đã tồn tại
+    finally:
+        conn.close()
 
 # đăng nhập cho user
 def login_user(username, password):
-    conn = get_connection()
+    conn = sqlite3.connect('expense_db.db')
     c = conn.cursor()
     c.execute('SELECT * FROM users WHERE username =? AND password = ?',
               (username, make_hashes(password)))
     data = c.fetchall()
+    conn.close()
     return data
 
 
 # funct expenses
 def add_expense(owner, expense_name, amount, category, date):
-    with db_lock:
-        db=get_connection()
-        c=db.cursor()
-        # bug fixed: 4 out of 5 columns
-        c.execute('insert into expenses(owner, item_name, amount, category, date) values (?,?,?,?,?)',
-            (owner,expense_name,amount,category,date))
-        db.commit()
-    st.cache_data.clear()    
+    db=sqlite3.connect('expense_db.db')
+    c=db.cursor()
+    # bug fixed: 4 out of 5 columns
+    c.execute('insert into expenses(owner, item_name, amount, category, date) values (?,?,?,?,?)',
+        (owner,expense_name,amount,category,date))
+    db.commit()
+    db.close()
 
 def add_income(owner, income_name, amount, category, date):
-    with db_lock:
-        db=get_connection()
-        c=db.cursor()
-        # bug fixed: 4 out of 5 columns
-        c.execute('insert into income(owner, source, amount, category, date) values (?,?,?,?,?)',
-            (owner,income_name,amount,category,date))
-        db.commit()
-    st.cache_data.clear()
+    db=sqlite3.connect('expense_db.db')
+    c=db.cursor()
+    # bug fixed: 4 out of 5 columns
+    c.execute('insert into income(owner, source, amount, category, date) values (?,?,?,?,?)',
+        (owner,income_name,amount,category,date))
+    db.commit()
+    db.close()
 
-def del_record(table_name,record_id,owner):
-    with db_lock:
-        db=get_connection()
-        c=db.cursor()
-        query = f"DELETE FROM {table_name} WHERE id=? and owner=?"
-        c.execute(query,(record_id,owner))
-        db.commit()
-    st.cache_data.clear()
-    # db.close()
-
-@st.cache_data(ttl=10)
 def view_expenses(user):
-    conn = get_connection()
-    # Không dùng with, không commit, chỉ đọc
-    return pd.read_sql_query("SELECT item_name as ten, category as danh_muc, date as ngay, amount as so_tien FROM expenses WHERE owner=?", conn, params=(user,))
-
-@st.cache_data(ttl=10)
+    db = sqlite3.connect('expense_db.db')
+    c=db.cursor()
+    # pandas to display
+    data_to_display = pd.read_sql_query("SELECT item_name as ten, category as danh_muc,date as ngay,amount as so_tien FROM expenses where owner=?", db, params=(user,))
+    db.close()
+    return data_to_display
 def view_income(user):
-    conn = get_connection()
-    return pd.read_sql_query("SELECT source as ten, category as danh_muc, date as ngay, amount as so_tien FROM income WHERE owner=?", conn, params=(user,))
-
-def get_data_with_id(table_name, owner):
-    db = get_connection() 
-    if table_name == "expenses":
-        query = "SELECT * FROM expenses WHERE owner=?"
+    db = sqlite3.connect('expense_db.db')
+    c=db.cursor()
+    # pandas to display
+    data_to_display = pd.read_sql_query("SELECT source as ten, category as danh_muc,date as ngay,amount as so_tien FROM income where owner=?", db, params=(user,))
+    db.close()
+    return data_to_display
+def del_record(table_name,record_id,owner):
+    db=sqlite3.connect('expense_db.db')
+    c = db.cursor()
+    query = f"DELETE FROM {table_name} WHERE id=? and owner=?"
+    c.execute(query,(record_id,owner))
+    db.commit()
+    db.close()
+def get_data_with_id(table_name,owner):
+    db=sqlite3.connect('expense_db.db')
+    c = db.cursor()
+    if table_name=="expenses":
+        query1= f"select * from expenses where owner=?"
     else:
-        query = "SELECT * FROM income WHERE owner=?"
-    read_data = pd.read_sql_query(query, db, params=(owner,))
+        query1= f"select * from income where owner=?"
+    read_data=pd.read_sql_query(query1,db,params=(owner,))
+    db.commit()
+    db.close()
     return read_data
 # main gui
 def main():
@@ -217,31 +193,45 @@ def main():
         tab1,tab4,tab2,tab3=st.tabs(["Thêm giao dịch","Thay đổi giao dịch","Lịch sử chi tiêu","Nhập từ file"])
         cat_out=["Ăn uống", "Di chuyển", "Nhà cửa", "Giải trí", "Khác"]
         cat_in=["Lương", "Hoa Hồng", "Nghề tay trái", "Rửa tiền","Khác"]
-        
         # input form tab1
         with tab1:
-            col_in, col_out = st.columns(2)
-            with col_out:
-                st.subheader("Thêm khoản chi")
-                with st.form("expense_form", clear_on_submit=True):
-                    item = st.text_input("Nội dung")
-                    amt = st.number_input("Số tiền", min_value=0, step=1000)
-                    cat = st.selectbox("Danh mục", cat_out)
-                    dt = st.date_input("Ngày chi")
-                    if st.form_submit_button("Lưu chi tiêu"):
-                        add_expense(user, item, amt, cat, dt)
-                        st.toast(f"Đã lưu: -{amt:,.0f} đ", icon="💸")
+            get_income,get_expense=st.columns(2)
+            with get_expense:
+                st.header("Thêm khoản chi")
+                with st.form("expense_form"):
+                    st.write("Thêm khoản chi mới")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        item_name = st.text_input("Tên khoản chi")
+                    with col2:
+                        amount = st.number_input("Số tiền", min_value=0)
+
+                    category = st.selectbox("Danh mục", cat_out)
+                    date = st.date_input("Ngày chi")
+
+                    submitted = st.form_submit_button("Thêm khoản chi")
+                    if submitted:
+                        add_expense(user, item_name, amount, category,date)
+                        st.success(f"Đã thêm: -{item_name} {amount} VNĐ")
                         st.rerun()
-            with col_in:
-                st.subheader("Thêm khoản thu")
-                with st.form("income_form", clear_on_submit=True):
-                    src = st.text_input("Nguồn thu")
-                    amt = st.number_input("Số tiền", min_value=0, step=1000)
-                    cat = st.selectbox("Loại thu", cat_in)
-                    dt = st.date_input("Ngày thu")
-                    if st.form_submit_button("Lưu thu nhập"):
-                        add_income(user, src, amt, cat, dt)
-                        st.toast(f"Đã nhận: +{amt:,.0f} đ", icon="💰")
+            with get_income:
+                st.header("Thêm khoản thu")
+                with st.form("income_form"):
+                    st.write("Thêm khoản thu mới")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        source = st.text_input("Tên khoản thu")
+                    with col2:
+                        amount = st.number_input("Số tiền", min_value=0)
+
+                    category = st.selectbox("Nguồn thu", cat_in)
+                    # category = st.text_input("Nguồn tiền")
+                    date = st.date_input("Ngày thu")
+
+                    submitted = st.form_submit_button("Thêm khoản thu")
+                    if submitted:
+                        add_income(user, source, amount, category,date)
+                        st.success(f"Đã thêm: + {source} {amount} VNĐ")
                         st.rerun()
         with tab4:
             st.header("Thay đổi giao dịch")
@@ -280,7 +270,7 @@ def main():
                 if not to_delete.empty:
                     st.warning(f"""
                                Bạn đang chọn xóa {count_trans} giao dịch với tổng số tiền {sum_trans} VNĐ.\n
-                               Bằng chữ: {read_money}.     
+                               Bằng chữ {read_money}.     
                                """)
                     if st.button("Xác nhận xóa"):
                         count = 0
@@ -318,7 +308,7 @@ def main():
                     st.info("Chưa có dữ liệu thu nhập.")
         with tab3:
             st.header("Nhập liệu từ Excel/CSV")
-            st.info("Hỗ trợ file .csv hoặc .xlsx. Dữ liệu sẽ được thêm vào bảng tương ứng.")
+            st.info("Hỗ trợ file .csv hoặc .xlsx. Dữ liệu sẽ được thêm vào bảng chi tiêu.")
             uploaded_file = st.file_uploader("Chọn file", type=['xlsx', 'csv'])
             
             if uploaded_file is not None:
@@ -399,10 +389,10 @@ def main():
                                 else:
                                     st.error("Không thể phân tích")
                         if st.session_state['ai_session'] is not None:
-                                    
+                            st.write("Kết quả:")   
                             data_read_ai = st.session_state['ai_session']
                             edited_df = st.data_editor(data_read_ai, num_rows="dynamic")
-                            st.write("Kết quả:")
+                            
             
                                     
                             if st.button("Lưu kết quả"):

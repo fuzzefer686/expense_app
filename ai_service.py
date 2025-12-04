@@ -3,7 +3,7 @@ import json
 import streamlit as st
 def configure_genai():
     try:
-        api_key = "AIzaSyCSITa2qpc_0VE7xah5u4vA8WWOiY3sIaA"
+        api_key = st.secrets["GOOGLE_API_KEY"]
         genai.configure(api_key=api_key)
         return True
     except Exception as e:
